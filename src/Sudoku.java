@@ -1,7 +1,5 @@
 import java.util.HashMap;
 import java.util.Scanner;
-import java.util.concurrent.ForkJoinPool;
-
 /**
  * @author 王协群
  * @date 2021/4/27 17:56
@@ -20,10 +18,12 @@ public class Sudoku {
     public int size;
     public boolean[][] s;
     public boolean []chose,cover;
+    public int[] cnt;
     HashMap<Integer,Node> index;
     int count;
     int colLen;
     int gridSize;
+    boolean [] judge;
     Sudoku(int size,byte[] org){
         this.size=size;
         this.org=org;
@@ -34,6 +34,8 @@ public class Sudoku {
         this.colLen=temp*temp*4;
         chose = new boolean[gridSize*gridSize*gridSize+1];
         cover = new boolean[colLen+1];
+        judge = new boolean[colLen+1];
+        cnt = new int[colLen+1];
         build();
     }
     public void build(){
@@ -43,21 +45,39 @@ public class Sudoku {
             int colID=i%(gridSize);
             int blockID=(rowID/size)*size+(colID/size);
             if (org[i]!=0){
+            int rowNum =gridSize*gridSize+rowID*gridSize+org[i];
+            int colNum = gridSize*gridSize*2+colID*gridSize+org[i];
+            int gridNum = gridSize*gridSize*3+blockID*gridSize+org[i];
              s[count][i+1] = true;
-             s[count][gridSize*gridSize+rowID*gridSize+org[i]]=true;
-             s[count][gridSize*gridSize*2+colID*gridSize+org[i]]=true;
-             s[count][gridSize*gridSize*3+blockID*gridSize+org[i]]=true;
+             s[count][rowNum]=true;
+             s[count][colNum]=true;
+             s[count][gridNum]=true;
+             judge[rowNum]=true;
+             judge[colNum]=true;
+             judge[gridNum]=true;
              count++;
-            }else {
-                for (int j = 0; j <gridSize ; j++) {
-                    s[count][i+1] = true;
-                    s[count][gridSize*gridSize+rowID*gridSize+j+1]=true;
-                    s[count][gridSize*gridSize*2+colID*gridSize+j+1]=true;
-                    s[count][gridSize*gridSize*3+blockID*gridSize+j+1]=true;
-                    count++;
-                }
             }
         }
+        for (int i = 0; i < org.length; i++) {
+            int rowID =i/(gridSize);
+            int colID =i%(gridSize);
+            int blockID=(rowID/size)*size+(colID/size);
+
+               if (org[i]==0){
+                   for (int j = 0; j <gridSize ; j++) {
+                       int rowNum =gridSize*gridSize+rowID*gridSize+j+1;
+                       int colNum = gridSize*gridSize*2+colID*gridSize+j+1;
+                       int gridNum = gridSize*gridSize*3+blockID*gridSize+j+1;
+                       if (!judge[rowNum]&&!judge[colNum]&&!judge[gridNum]){
+                           s[count][i+1] = true;
+                           s[count][gridSize*gridSize+rowID*gridSize+j+1]=true;
+                           s[count][gridSize*gridSize*2+colID*gridSize+j+1]=true;
+                           s[count][gridSize*gridSize*3+blockID*gridSize+j+1]=true;
+                           count++;
+                       }
+                   }
+               }
+            }
         this.count=count;
     }
     public void buildLink(){
@@ -82,6 +102,7 @@ public class Sudoku {
                     node.rowNum=i;
                     node.colNum=j;
                     node.index=i*temp+j;
+                    cnt[j]++;
                     for (int k = (i+1>=count)?0:i+1;; k = (k + 1 >= count) ? 0 : k + 1) {
                         if (s[k][j]){
                             node.down=k*temp+j;
@@ -117,12 +138,22 @@ public class Sudoku {
             }
         }
     }
+    public int getSmallest(){
+        int a =1;
+        int answer = Integer.MAX_VALUE;
+        for (int i=1; i <cnt.length ; i++) {
+            if (!cover[i]){
+                if (answer>cnt[i]){
+                    answer=cnt[i];
+                    a = i;
+                }
+            }
+        }
+        return a;
+    }
     public boolean Dance(int x){
         if (index.get(0).left==0){
             return true;
-        }
-        if (cover[index.get(x).colNum]){
-            return Dance(x+1);
         }
         remove(x);
         for (int p = index.get(x).down; p != x; p = index.get(p).down) {
@@ -133,7 +164,7 @@ public class Sudoku {
             }
 
             //下一个元素x+1
-            if (Dance(x + 1)) {
+            if (Dance(getSmallest())) {
                 return true;
             }
             chose[index.get(p).rowNum] = false;
@@ -154,6 +185,7 @@ public class Sudoku {
         for (int p = index.get(i).up; p != i; p = index.get(p).up) {
             //在列上恢复子集上除了i的其他节点
             for (int q = index.get(p).right; q != p; q = index.get(q).right) {
+                cnt[index.get(q).colNum]++;
                 index.get(index.get(q).down).up=q;
                 index.get(index.get(q).up).down=q;
             }
@@ -167,6 +199,7 @@ public class Sudoku {
         cover[i]=true;
         for (int p = index.get(i).down; p != i; p = index.get(p).down) {
             for (int q = index.get(p).right; q != p; q = index.get(q).right) {
+                cnt[index.get(q).colNum]--;
                 index.get(index.get(q).down).up=index.get(q).up;
                 index.get(index.get(q).up).down=index.get(q).down;
 
